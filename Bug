@@ -1,26 +1,21 @@
-It looks like your Alpine 3.20 installation is broken — the rootfs is missing `/bin/sh`, so every command I run gets caught in a proot error loop and the session resets. I can't execute anything right now.
+Here's what I'm seeing:
 
-**To fix this, try one of:**
+**Push Error (both repos):**
+```
+ERROR: cannot read danielsem65/calculator-app@main — branch response missing sha
+```
+```
+ERROR: cannot read danielsem65/calculator-app-v2@main — branch response missing sha
+```
 
-1. **Reinstall the Linux environment** from within the SemCode AI app (look for a "Reinstall Linux" or "Reset Linux" option)
+**Alpine Linux Error:**
+```
+proot warning: no /bin/sh in /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin (root = /data/user/0/com.danielsem65.semcodeai/files/linux/rootfs)
+proot error: see `proot --help` or `man proot`.
+```
 
-2. **Or manually fix it** — if you have access to the Android shell (Termux or similar), you can download and extract a working Alpine rootfs:
-   ```bash
-   cd /data/user/0/com.danielsem65.semcodeai/files/linux/
-   rm -rf rootfs
-   wget https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.0-x86_64.tar.gz
-   mkdir rootfs && tar xzf alpine-minirootfs-3.20.0-x86_64.tar.gz -C rootfs
-   ```
+**Root cause:** The Alpine rootfs is broken — it has no `/bin/sh`, so proot can't start. Without a working Linux shell I have no `git` binary to push manually. The built-in `github_push` tool fails with "branch response missing sha" — likely a bug or auth issue with empty/near-empty repos.
 
-3. **Or just open the Terminal tab** and run the git commands yourself:
-   ```bash
-   cd /storage/emulated/0/.semcode-ai/workspace/Projects/calculator-app
-   git init
-   git add -A
-   git commit -m "feat: initial Calculator app with dark theme UI and GitHub Actions CI"
-   git branch -M main
-   git remote add origin https://github.com/danielsem65/calculator-app.git
-   git push -u origin main
-   ```
-
-Once git works (either via a fixed Alpine or directly), I can take over and handle everything from there. Let me know which path you go with!
+**What would fix it:**
+1. **Fix Alpine** — reinstall/reset the rootfs so it has `/bin/sh`, then I can `apt install git` and push manually with your token
+2. Or **reinstall this app** with the fix if it was a known bug
