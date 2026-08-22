@@ -1,54 +1,15 @@
-Short answer: yes — this needs a rebuild/config change on the app side. It's not fixable from inside the sandbox, because the shell never starts at all.
+SemCode AI crash report — 2026-08-22 13:18:44
+thread: main
 
-## What actually broke
-
-Every command dies before your code even runs:
-
-```
-proot warning: execve("/usr/bin/sh"): Permission denied
-```
-
-Translation: the proot process starts, but Android refuses to **execute** the Ubuntu rootfs's shell binary. Two classic Android causes, and you likely have both:
-
-1. **noexec mount** — `/storage/emulated/0` (shared storage) is always mounted `noexec`. If the app extracts the Ubuntu rootfs under shared storage, nothing inside it can ever be executed. Read/write works; exec never will.
-2. **W^X restriction (Android 10+)** — apps targeting SDK ≥ 29 are blocked by SELinux from `exec()`ing any binary in app-writable storage. This is why Termux targets SDK 28.
-
-That's why every attempt just times out after 30s and resets — there is no shell to type into.
-
-## What to tell your agent/dev for the next build
-
-Paste this:
-
-```
-BUG: Linux shell never starts. Every run_command fails with:
-  proot warning: execve("/usr/bin/sh"): Permission denied
-  proot error: see `proot --help`.
-
-ROOT CAUSE (likely both):
-1. Distro rootfs is extracted under /storage/emulated/0, which Android
-   mounts noexec — binaries there can never be executed.
-2. App targets SDK >= 29, so Android W^X/SELinux blocks exec() from
-   app-writable directories.
-
-REQUIRED FIXES:
-1. Extract the Linux rootfs into app-PRIVATE internal storage
-   (context.getFilesDir()), never shared storage.
-2. Ship the exec helpers (proot, busybox/sh) as native libs:
-   name them lib*.so in jniLibs with android:extractNativeLibs="true",
-   then execute from applicationInfo.nativeLibraryDir (that dir stays
-   executable). OR target SDK 28 like Termux does.
-3. Launch proot as:
-   <nativeLibraryDir>/libproot.so --kill-on-exit -0 -r <privateRootfs> \
-     -b /dev -b /proc -b /sys \
-     -b /storage/emulated/0/semcode:/workspace \
-     -w /root /bin/sh -l
-   (bind-mount shared storage for the workspace — rw is fine there,
-   only EXECUTION is banned.)
-4. Verify via `adb logcat | grep avc` — look for "avc: denied" exec
-   entries to confirm the SELinux cause.
-```
-
-## Meanwhile
-
-- File tools still work (list/read/write/edit/copy), and GitHub push/pull works — so normal project work isn't blocked, just shell/apt/python/git-in-shell.
-- Retrying won't help; it's a filesystem permission wall, not a flake.
+android.app.RemoteServiceException$ForegroundServiceDidNotStartInTimeException: Context.startForegroundService() did not then call Service.startForeground(): ServiceRecord{3133136 u0 com.danielsem65.semcodeai/.core.AgentService c:com.danielsem65.semcodeai}
+	at android.app.ActivityThread.generateForegroundServiceDidNotStartInTimeException(ActivityThread.java:2675)
+	at android.app.ActivityThread.throwRemoteServiceException(ActivityThread.java:2643)
+	at android.app.ActivityThread.-$$Nest$mthrowRemoteServiceException(Unknown Source:0)
+	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:3068)
+	at android.os.Handler.dispatchMessage(Handler.java:110)
+	at android.os.Looper.loopOnce(Looper.java:273)
+	at android.os.Looper.loop(Looper.java:363)
+	at android.app.ActivityThread.main(ActivityThread.java:10060)
+	at java.lang.reflect.Method.invoke(Native Method)
+	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:632)
+	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:975)
