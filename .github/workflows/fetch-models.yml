@@ -1,0 +1,34 @@
+name: fetch-models
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download models from Hugging Face
+        run: |
+          mkdir -p models
+          curl -L --fail --retry 3 -o "models/qwen2.5-0.5b-instruct-q4_k_m.gguf" \
+            "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+          curl -L --fail --retry 3 -o "models/qwen2.5-1.5b-instruct-q4_k_m.gguf" \
+            "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+          curl -L --fail --retry 3 -o "models/llama-3.2-3b-instruct-q4_k_m.gguf" \
+            "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+          ls -lh models/
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete models-v1 --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create models-v1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Offline AI models for SemCode AI" \
+            --notes "Tap a file to download it to your phone, then in SemCode AI: Settings → On-device (offline) → Browse → pick it (usually in Downloads). Smaller = faster + less RAM." 
+          gh release upload models-v1 --repo "$GITHUB_REPOSITORY" --clobber models/*.gguf
